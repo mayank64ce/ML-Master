@@ -213,7 +213,19 @@ class MCTSAgent:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n\n# Memory\nThe memory of previous solutions used to solve task is provided below:\n{prompt['Memory']}\n\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>\n{introduction}\n<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}"
         elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
-            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            user_prompt = f"""
+# Task description
+{prompt['Task description']}
+
+# Memory
+The memory of previous solutions used to solve task is provided below:
+{prompt['Memory']}
+
+{instructions}
+
+# Data preview
+{self.data_preview} 
+"""
             prompt_complete = [
                     {"role": "system", "content": prompt['Introduction']},
                     {"role": "user", "content": user_prompt}
@@ -274,7 +286,24 @@ class MCTSAgent:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n\n# Memory\nThe memory of previous solutions used to improve performance is provided below:\n {prompt['Memory']}\n\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>{introduction}<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made attempts with the following code:\n{prompt['Previous solution']['Code']}\nThe execution of this code yielded the following results:\n{output}\nI believe that there is likely still room for optimization based on this code, and perhaps some aspects could be further refined and improved to enhance its performance."
         elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
-            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            user_prompt = f"""
+# Task description
+{prompt['Task description']}
+# Memory
+The memory of previous solutions used to improve performance is provided below: 
+{prompt['Memory']}
+
+{instructions}
+
+# Data preview
+{self.data_preview}
+
+# Previous solution
+{prompt['Previous solution']['Code']}
+
+# Execution output
+{output}
+"""
             prompt_complete = [
                     {"role": "system", "content": prompt['Introduction']},
                     {"role": "user", "content": user_prompt}
@@ -338,7 +367,21 @@ class MCTSAgent:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>{prompt['Introduction']}<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made an attempt with the following code:\n{prompt['Previous (buggy) implementation']}\nHowever, there are the following issues with this code:\n{prompt['Execution output']}\nI hold the view that the underlying reasons giving rise to the emergence of this issue are:\n{parent_node.analysis}\nThe previous solution had a bug and/or did not produce a submission.csv, or the generated submission.csv was in an incorrect format.I will try to fix the bug."
         elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
-            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            user_prompt = f"""
+# Task description
+{prompt['Task description']}
+
+{instructions}
+
+# Data preview
+{self.data_preview}
+
+# Previous (buggy) implementation
+{prompt['Previous (buggy) implementation']}
+
+# Execution output
+{prompt['Execution output']}
+"""
             prompt_complete = [
                     {"role": "system", "content": prompt['Introduction']},
                     {"role": "user", "content": user_prompt}
