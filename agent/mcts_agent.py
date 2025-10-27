@@ -6,7 +6,7 @@ import time
 from typing import Any, Callable, cast, Tuple, List, Literal
 import math
 import humanize
-from backend import FunctionSpec, compile_prompt_to_md, query, r1_query
+from backend import FunctionSpec, compile_prompt_to_md, query, r1_query, gpt_query
 from interpreter.interpreter_parallel import ExecutionResult
 from search.journal import Journal
 from search.mcts_node import MCTSNode
@@ -38,7 +38,7 @@ review_func_spec = FunctionSpec(
             "has_csv_submission": {
                 "type": "boolean",
                 "description": "true if the code saves the predictions on the test data"
-                " in a `submission.csv` file in the `./submission/` directory, otherwise false."
+                " in a CSV file named either `submission.csv` or matching the pattern `submission_<hash>.csv` in the `./submission/` directory, otherwise false."
                 " Note that the file MUST be saved in the ./submission/ directory for this to be evaluated as true."
                 " Otherwise, it should be evaluated as false."
                 " You can assume the ./submission/ directory exists and is writable.",
@@ -206,13 +206,18 @@ class MCTSAgent:
         instructions = f"\n# Instructions\n\n"
         instructions += compile_prompt_to_md(prompt["Instructions"], 2)
 
-        if "qwen3" in self.acfg.code.model:
+        if "qwen3" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n\n# Memory\nThe memory of previous solutions used to solve task is provided below:\n {prompt['Memory']}\n\n{instructions}"
             prompt_complete = f"<|im_start|>system\n{introduction}<|im_end|>\n<|im_start|>user{user_prompt}<|im_end|><|im_start|>assistant\n<think>Okay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}"
-        elif "deepseek" in self.acfg.code.model:
+        elif "deepseek" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n\n# Memory\nThe memory of previous solutions used to solve task is provided below:\n{prompt['Memory']}\n\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>\n{introduction}\n<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}"
-        
+        elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
+            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            prompt_complete = [
+                    {"role": "system", "content": prompt['Introduction']},
+                    {"role": "user", "content": user_prompt}
+            ]
         self.virtual_root.add_expected_child_count()
         plan, code = self.plan_and_code_query(prompt_complete)
         new_node = MCTSNode(plan=plan, code=code, parent=self.virtual_root, stage="draft", local_best_node=self.virtual_root)
@@ -262,13 +267,18 @@ class MCTSAgent:
         instructions = "\n# Instructions\n\n"
         instructions += compile_prompt_to_md(prompt["Instructions"], 2)
         
-        if "qwen3" in self.acfg.code.model:
+        if "qwen3" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             qwen3_user_prompt = f"\n# Task description\n{prompt['Task description']}\n# Memory\nThe memory of previous solutions used to improve performance is provided below:\n {prompt['Memory']}\n{instructions}"
             prompt_complete = f"<|im_start|>system\n{introduction}<|im_end|>\n<|im_start|>user{qwen3_user_prompt}<|im_end|><|im_start|>assistant\n<think>Okay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made attempts with the following code:\n{prompt['Previous solution']['Code']}\nThe execution of this code yielded the following results:\n{output}\nI believe that there is likely still room for optimization based on this code, and perhaps some aspects could be further refined and improved to enhance its performance."
-        elif "deepseek" in self.acfg.code.model:
+        elif "deepseek" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n\n# Memory\nThe memory of previous solutions used to improve performance is provided below:\n {prompt['Memory']}\n\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>{introduction}<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made attempts with the following code:\n{prompt['Previous solution']['Code']}\nThe execution of this code yielded the following results:\n{output}\nI believe that there is likely still room for optimization based on this code, and perhaps some aspects could be further refined and improved to enhance its performance."
-
+        elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
+            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            prompt_complete = [
+                    {"role": "system", "content": prompt['Introduction']},
+                    {"role": "user", "content": user_prompt}
+            ]
         parent_node.add_expected_child_count()
 
         plan, code = self.plan_and_code_query(prompt_complete)
@@ -321,12 +331,19 @@ class MCTSAgent:
         instructions = "\n# Instructions\n\n"
         instructions += compile_prompt_to_md(prompt["Instructions"], 2)
 
-        if "qwen3" in self.acfg.code.model:
+        if "qwen3" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             qwen3_user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
             prompt_complete = f"<|im_start|>system\n{introduction}<|im_end|>\n<|im_start|>user{qwen3_user_prompt}<|im_end|><|im_start|>assistant\n<think>Okay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made an attempt with the following code:\n{prompt['Previous (buggy) implementation']}\nHowever, there are the following issues with this code:\n{prompt['Execution output']}\nI hold the view that the underlying reasons giving rise to the emergence of this issue are:\n{parent_node.analysis}\nThe previous solution had a bug and/or did not produce a submission.csv. I will try to fix the bug."
-        elif "deepseek" in self.acfg.code.model:
+        elif "deepseek" in self.acfg.code.model and self.acfg.steerable_reasoning== True:
             user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
             prompt_complete = f"<｜begin▁of▁sentence｜>{prompt['Introduction']}<｜User｜>{user_prompt}<｜Assistant｜><think>\nOkay! Now, I will focus my efforts on successfully completing this current task.\nBefore completing this task, first of all, I need to analyze and understand the relevant dataset. The information of the dataset is as follows: \n{self.data_preview}\nRegarding this task, I previously made an attempt with the following code:\n{prompt['Previous (buggy) implementation']}\nHowever, there are the following issues with this code:\n{prompt['Execution output']}\nI hold the view that the underlying reasons giving rise to the emergence of this issue are:\n{parent_node.analysis}\nThe previous solution had a bug and/or did not produce a submission.csv, or the generated submission.csv was in an incorrect format.I will try to fix the bug."
+        elif "gpt-5" in self.acfg.code.model or self.acfg.steerable_reasoning == False:
+            user_prompt = f"\n# Task description\n{prompt['Task description']}\n{instructions}"
+            prompt_complete = [
+                    {"role": "system", "content": prompt['Introduction']},
+                    {"role": "user", "content": user_prompt}
+            ]        
+
         parent_node.add_expected_child_count()
         plan, code = self.plan_and_code_query(prompt_complete)
         new_node = MCTSNode(plan=plan, code=code, parent=parent_node, stage="debug", local_best_node=parent_node.local_best_node)
@@ -337,12 +354,20 @@ class MCTSAgent:
         """Generate a natural language plan + code in the same LLM call and split them apart."""
         completion_text = None
         for _ in range(retries):
-            completion_text = r1_query(
-                prompt = prompt,
-                temperature=self.acfg.code.temp,
-                model=self.acfg.code.model,
-                cfg=self.cfg
-            )
+            if "gpt-5" in self.acfg.code.model:
+                completion_text = gpt_query(
+                    prompt = prompt,
+                    temperature=self.acfg.code.temp,
+                    model=self.acfg.code.model,
+                    cfg=self.cfg
+                )
+            else:
+                completion_text = r1_query(
+                    prompt = prompt,
+                    temperature=self.acfg.code.temp,
+                    model=self.acfg.code.model,
+                    cfg=self.cfg
+                )
 
             code = extract_code(completion_text)
             nl_text = extract_text_up_to_code(completion_text)

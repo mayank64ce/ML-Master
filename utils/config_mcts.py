@@ -84,6 +84,7 @@ class AgentConfig:
     obfuscate: bool
     check_format: bool
     save_all_submission: bool
+    steerable_reasoning: bool
     code: StageConfig
     feedback: StageConfig
     search: SearchConfig

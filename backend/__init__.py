@@ -1,14 +1,16 @@
 import logging
 from . import  backend_openai   
 from .backend_utils import FunctionSpec, OutputType, PromptType, compile_prompt_to_md
-from backend.call import r1_query
+from backend.call import r1_query, gpt_query
 from utils.config_mcts import Config
 logger = logging.getLogger("ml-master")
 
 
 def determine_provider(model: str) -> str:
-    if model.startswith("gpt-") or model.startswith("o1-"):
+    if model.startswith("gpt-"):
         return "openai"
+    else:
+        raise ValueError("please use a gpt model as a feedback model")
 
 
 provider_to_query_func = {

@@ -95,12 +95,18 @@ class LLM:
         attempt = 0
         while attempt < self.retry_time:
             try:
-                response = self.client.chat.completions.create(**params)
-                
-                if stream:
-                    return response
-                
-                return response.choices[0].message
+                if  "gpt-5" in self.model_name:
+                    response = self.client.responses.create(
+                        model=self.model_name,
+                        instructions=params["messages"][0]["content"],
+                        input=params["messages"][1]["content"],
+                        reasoning={ "effort": "medium" },
+                        text={ "verbosity": "medium" },
+                    )
+                    return response.output_text
+                else:
+                    response = self.client.chat.completions.create(**params)
+                    return response.choices[0].message
             except Exception as e:
                 attempt += 1
                 logger.warning(f"calling llm failed, retrying {attempt}/retry, error message: {e}")
@@ -155,12 +161,28 @@ class LLM:
         attempt = 0
         while attempt < self.retry_time:
             try:
-                response = self.client.chat.completions.create(**params)
-                full_text = ""
-                for chunk in response:
-                    if chunk.choices and chunk.choices[0].delta.content is not None:
-                        full_text += chunk.choices[0].delta.content
-                    return response
+                if  "gpt-5" in self.model_name:
+                    response = self.client.responses.create(
+                        model=self.model_name,
+                        instructions=params["messages"][0]["content"],
+                        input=params["messages"][1]["content"],
+                        reasoning={ "effort": "medium" },
+                        text={ "verbosity": "medium" },
+                        stream=True
+                    )
+                    full_text = ""
+                    for chunk in response:
+                        if chunk.type=="response.output_text.delta":
+                            full_text += chunk.delta
+                    return full_text
+                else:
+                    response = self.client.chat.completions.create(**params)
+
+                    full_text = ""
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content is not None:
+                            full_text += chunk.choices[0].delta.content
+                    return full_text
             except Exception as e:
                 attempt += 1
                 logger.warning(f"calling llm failed, retrying {attempt}/retry, error message: {e}")

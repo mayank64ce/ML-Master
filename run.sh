@@ -54,6 +54,7 @@ CUDA_VISIBLE_DEVICES=$MEMORY_INDEX taskset -c ${start_cpu}-${end_cpu} timeout $T
   agent.feedback.temp=$feedback_temp \
   agent.feedback.base_url=$feedback_base_url \
   agent.feedback.api_key=$feedback_api_key
+  # agent.steerable_reasoning=false
 
 if [ $? -eq 124 ]; then
   echo "Timed out after $TIME_LIMIT"

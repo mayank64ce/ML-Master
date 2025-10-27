@@ -132,6 +132,16 @@ def run():
         if global_step == 0:
             shutil.rmtree(cfg.workspace_dir)
 
+    if cfg.agent.steerable_reasoning == True:
+        logger.warning("Steerable reasoning is enabled, please make sure your open sourced model api support `client.compeletion.create()`, otherwise the process may fail")
+        if "gpt" in cfg.agent.code.model or "gemini" in cfg.agent.code.model or "claude" in cfg.agent.code.model:
+            logger.warning("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
+            raise ValueError("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
+    
+    if cfg.agent.check_format == True:
+        logger.warning("Check format is enabled, please make sure you have launched the server, or this step will be skipped")
+
+
     atexit.register(cleanup)
 
     journal = Journal()

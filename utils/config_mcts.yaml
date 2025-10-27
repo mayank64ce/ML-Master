@@ -46,6 +46,8 @@ agent:
   check_format: True
   # for mcts
   save_all_submission: True
+  # steerable reasoning, only works when your deepseek api support client.completions.create()
+  steerable_reasoning: True 
 
   # LLM settings for coding
   code:

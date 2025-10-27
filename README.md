@@ -13,6 +13,7 @@
 ![ML-Master](./assets/ML-Master_figure.png)
 
 ## 📰 What's New
+- [2025/10/27] Add support for gpt-5.
 - [2025/08/08] Initial code release is now available on GitHub!
 - [2025/06/19] Release the preprint version! See the [ArXiv](https://arxiv.org/abs/2506.16499).
 - [2025/06/17] Release the initial version! See the initial manuscript [here](./assets/ML-Master_github.pdf).
@@ -92,6 +93,7 @@ self.client = OpenAI(
 )
 response = self.client.completions.create(**params)
 ```
+If your API does not support this interface or you are using a closed source model(e.g. gpt-5) as coding model, please add `agent.steerable_reasoning=false` to `run.sh`. This may result in some performance loss.
 
 Set your `base_url` and `api_key` in the `run.sh` script.
 **GPT-4o** is used *only* for evaluation and feedback, consistent with **[MLE-Bench](https://github.com/openai/mle-bench)**.
