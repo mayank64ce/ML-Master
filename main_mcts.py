@@ -2,6 +2,8 @@ import atexit
 import logging
 import shutil
 import sys
+from dotenv import load_dotenv
+load_dotenv()  # loads .env from the current working directory
 
 import backend
 import threading
@@ -76,10 +78,12 @@ def journal_to_string_tree(journal: Journal) -> str:
             if node is best_node:
                 markers.append("best")
             marker_str = " & ".join(markers)
-            if marker_str and node.metric.value:
+            if marker_str and node.metric.value is not None:
                 s = f"{indent}● {node.metric.value:.3f} ({marker_str}) (ID: {node.id})\n"
-            else:
+            elif node.metric.value is not None:
                 s = f"{indent}● {node.metric.value:.3f} (ID: {node.id})\n"
+            else:
+                s = f"{indent}● [None] (ID: {node.id})\n"
         tree_str += s
         for child in node.children:
             append_rec(child, level + 1)

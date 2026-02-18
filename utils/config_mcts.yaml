@@ -53,15 +53,15 @@ agent:
   code:
     model: deepseek-r1
     temp: 0.5
-    base_url: "your_deepseek_url"
-    api_key: "your_deepseek_url"
+    base_url: ${oc.env:CODE_BASE_URL,https://api.openai.com/v1}
+    api_key: ${oc.env:CODE_API_KEY,}
 
   # LLM settings for evaluating program output / tracebacks
   feedback:
     model: gpt-4o-2024-08-06
     temp: 0.5
-    base_url: "your_gpt_url"
-    api_key: "your_gpt_api_key"
+    base_url: ${oc.env:FEEDBACK_BASE_URL,https://api.openai.com/v1}
+    api_key: ${oc.env:FEEDBACK_API_KEY,}
 
   # hyperparameters for the tree search
   search:
