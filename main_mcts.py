@@ -129,6 +129,9 @@ def run():
     task_desc = load_task_desc(cfg)
     task_desc_str = backend.compile_prompt_to_md(task_desc)
 
+    # Detect FHE mode
+    fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
+
     with Status("Preparing agent workspace (copying and extracting files) ..."):
         prep_agent_workspace(cfg)
 
@@ -136,28 +139,44 @@ def run():
         if global_step == 0:
             shutil.rmtree(cfg.workspace_dir)
 
-    if cfg.agent.steerable_reasoning == True:
-        logger.warning("Steerable reasoning is enabled, please make sure your open sourced model api support `client.compeletion.create()`, otherwise the process may fail")
-        if "gpt" in cfg.agent.code.model or "gemini" in cfg.agent.code.model or "claude" in cfg.agent.code.model:
-            logger.warning("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
-            raise ValueError("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
-    
-    if cfg.agent.check_format == True:
-        logger.warning("Check format is enabled, please make sure you have launched the server, or this step will be skipped")
+    if not fhe_mode:
+        if cfg.agent.steerable_reasoning == True:
+            logger.warning("Steerable reasoning is enabled, please make sure your open sourced model api support `client.compeletion.create()`, otherwise the process may fail")
+            if "gpt" in cfg.agent.code.model or "gemini" in cfg.agent.code.model or "claude" in cfg.agent.code.model:
+                logger.warning("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
+                raise ValueError("Steerable reasoning does not support close sourced models, please set steerable reasoning to false")
 
+        if cfg.agent.check_format == True:
+            logger.warning("Check format is enabled, please make sure you have launched the server, or this step will be skipped")
 
     atexit.register(cleanup)
 
     journal = Journal()
-    agent = Agent(
-        task_desc=task_desc,
-        cfg=cfg,
-        journal=journal,
-    )
 
-    interpreter = Interpreter(
-        cfg.workspace_dir, **OmegaConf.to_container(cfg.exec), cfg=cfg  # type: ignore
-    )
+    if fhe_mode:
+        from fhe.challenge_parser import parse_challenge
+        from fhe.fhe_agent import FHEAgent
+        from fhe.fhe_interpreter import FHEInterpreter
+
+        spec = parse_challenge(cfg.fhe.challenge_dir)
+        logger.info(f"FHE mode: challenge={spec.challenge_name}, type={spec.challenge_type.value}")
+
+        agent = FHEAgent(
+            task_desc=task_desc,
+            cfg=cfg,
+            journal=journal,
+            spec=spec,
+        )
+        interpreter = FHEInterpreter(spec, cfg)
+    else:
+        agent = Agent(
+            task_desc=task_desc,
+            cfg=cfg,
+            journal=journal,
+        )
+        interpreter = Interpreter(
+            cfg.workspace_dir, **OmegaConf.to_container(cfg.exec), cfg=cfg  # type: ignore
+        )
 
     global_step = len(journal)
     prog = Progress(
@@ -204,7 +223,7 @@ def run():
 
                 with lock:
                     save_run(cfg, journal)
-                    completed = len(journal)-1. # Exclude virtual node
+                    completed = len(journal)-1 # Exclude virtual node
                     if completed == total_steps:
                         logger.info(journal_to_string_tree(journal))
 

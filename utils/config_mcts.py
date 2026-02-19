@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import json
 from pathlib import Path
-from typing import Hashable, cast, Literal
+from typing import Hashable, Optional, cast, Literal
 
 import coolname
 import rich
@@ -98,13 +98,20 @@ class ExecConfig:
 
 
 @dataclass
-class Config(Hashable):
-    data_dir: Path
-    dataset_dir: Path
-    desc_file: Path | None
+class FHEConfig:
+    challenge_dir: Optional[Path]
+    build_timeout: int
+    run_timeout: int
 
-    goal: str | None
-    eval: str | None
+
+@dataclass
+class Config(Hashable):
+    data_dir: Optional[Path]
+    dataset_dir: Optional[Path]
+    desc_file: Optional[Path]
+
+    goal: Optional[str]
+    eval: Optional[str]
 
     log_dir: Path
     log_level: str
@@ -119,6 +126,8 @@ class Config(Hashable):
     agent: AgentConfig
     start_cpu_id: str
     cpu_number: str
+
+    fhe: FHEConfig
 
 
 def _get_next_logindex(dir: Path) -> int:
@@ -147,17 +156,28 @@ def load_cfg(path: Path = Path(__file__).parent / "config_mcts.yaml") -> Config:
 
 
 def prep_cfg(cfg: Config):
-    if cfg.data_dir is None:
-        raise ValueError("`data_dir` must be provided.")
+    # FHE mode: challenge_dir replaces data_dir/desc_file
+    fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
 
-    if cfg.desc_file is None and cfg.goal is None:
-        raise ValueError(
-            "You must provide either a description of the task goal (`goal=...`) or a path to a plaintext file containing the description (`desc_file=...`)."
-        )
+    if fhe_mode:
+        cfg.fhe.challenge_dir = Path(cfg.fhe.challenge_dir).resolve()
+        # In FHE mode, data_dir and desc_file are optional - set defaults if missing
+        if cfg.data_dir is None:
+            cfg.data_dir = cfg.fhe.challenge_dir
+        if cfg.desc_file is None and cfg.goal is None:
+            cfg.goal = "Solve FHE challenge"
+    else:
+        if cfg.data_dir is None:
+            raise ValueError("`data_dir` must be provided.")
+        if cfg.desc_file is None and cfg.goal is None:
+            raise ValueError(
+                "You must provide either a description of the task goal (`goal=...`) or a path to a plaintext file containing the description (`desc_file=...`)."
+            )
 
-    if cfg.data_dir.startswith("example_tasks/"):
-        cfg.data_dir = Path(__file__).parent.parent / cfg.data_dir
-    cfg.data_dir = Path(cfg.data_dir).resolve()
+    if cfg.data_dir is not None:
+        if isinstance(cfg.data_dir, str) and cfg.data_dir.startswith("example_tasks/"):
+            cfg.data_dir = Path(__file__).parent.parent / cfg.data_dir
+        cfg.data_dir = Path(cfg.data_dir).resolve()
 
     if cfg.desc_file is not None:
         cfg.desc_file = Path(cfg.desc_file).resolve()
@@ -188,6 +208,15 @@ def print_cfg(cfg: Config) -> None:
 def load_task_desc(cfg: Config):
     """Load task description from markdown file or config str."""
 
+    # FHE mode: load challenge.md as task description
+    fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
+    if fhe_mode:
+        challenge_md = Path(cfg.fhe.challenge_dir) / "challenge.md"
+        if challenge_md.exists():
+            return challenge_md.read_text()
+        else:
+            return {"Task goal": "Solve the FHE challenge"}
+
     # either load the task description from a file
     if cfg.desc_file is not None:
         if not (cfg.goal is None and cfg.eval is None):
@@ -213,29 +242,37 @@ def load_task_desc(cfg: Config):
 
 def prep_agent_workspace(cfg: Config):
     """Setup the agent's workspace and preprocess data if necessary."""
-    (cfg.workspace_dir / "input").mkdir(parents=True, exist_ok=True)
-    (cfg.workspace_dir / "working").mkdir(parents=True, exist_ok=True)
-    (cfg.workspace_dir / "submission").mkdir(parents=True, exist_ok=True)
+    fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
 
-    copytree(cfg.data_dir, cfg.workspace_dir / "input", use_symlinks=not cfg.copy_data)
-    if cfg.preprocess_data:
-        preproc_data(cfg.workspace_dir / "input")
+    if fhe_mode:
+        # FHE mode: create workspace for FHE interpreter
+        (cfg.workspace_dir / "src").mkdir(parents=True, exist_ok=True)
+        (cfg.workspace_dir / "build").mkdir(parents=True, exist_ok=True)
+        (cfg.workspace_dir / "output").mkdir(parents=True, exist_ok=True)
+        (cfg.workspace_dir / "best_solution").mkdir(parents=True, exist_ok=True)
+    else:
+        # ML mode: original workspace setup
+        (cfg.workspace_dir / "input").mkdir(parents=True, exist_ok=True)
+        (cfg.workspace_dir / "working").mkdir(parents=True, exist_ok=True)
+        (cfg.workspace_dir / "submission").mkdir(parents=True, exist_ok=True)
+
+        copytree(cfg.data_dir, cfg.workspace_dir / "input", use_symlinks=not cfg.copy_data)
+        if cfg.preprocess_data:
+            preproc_data(cfg.workspace_dir / "input")
 
 
 def save_run(cfg: Config, journal: Journal):
     cfg.log_dir.mkdir(parents=True, exist_ok=True)
 
-    # filtered_journal = filter_journal(journal)
-    # save journal
-    # serialize.dump_json(journal, cfg.log_dir / "journal.json")
-    # serialize.dump_json(filtered_journal, cfg.log_dir / "filtered_journal.json")
     # save config
     OmegaConf.save(config=cfg, f=cfg.log_dir / "config_mcts.yaml")
-    
+
     # save the best found solution
+    fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
     best_node = journal.get_best_node()
     if best_node is not None:
-        with open(cfg.log_dir / "best_solution.py", "w") as f:
+        ext = "cpp" if fhe_mode else "py"
+        with open(cfg.log_dir / f"best_solution.{ext}", "w") as f:
             f.write(best_node.code)
     # # concatenate logs
     # with open(cfg.log_dir / "full_log.txt", "w") as f:

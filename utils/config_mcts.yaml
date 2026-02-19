@@ -90,8 +90,10 @@ agent:
     dynamic_piecewise_decay:
       alpha: 0.01
       phase_ratios: [0.85, 1]
-    
 
-
-
+# FHE challenge settings (enables FHE mode when challenge_dir is set)
+fhe:
+  challenge_dir: null    # path to FHE challenge directory
+  build_timeout: 600     # Docker build timeout in seconds
+  run_timeout: 600       # Docker run timeout in seconds
 

@@ -55,7 +55,10 @@ def compile_prompt_to_md(prompt: PromptType, _header_depth: int = 1) -> str:
     if isinstance(prompt, str):
         return prompt.strip() + "\n"
     elif isinstance(prompt, list):
-        return "\n".join([f"- {s.strip()}" for s in prompt] + ["\n"])
+        return "\n".join([f"- {str(s).strip()}" for s in prompt] + ["\n"])
+    elif not isinstance(prompt, dict):
+        # Handle scalars (int, float, bool, etc.) that appear as leaf values
+        return str(prompt) + "\n"
 
     out = []
     header_prefix = "#" * _header_depth

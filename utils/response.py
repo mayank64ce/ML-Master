@@ -109,3 +109,85 @@ def format_code(code) -> str:
         return black.format_str(code, mode=black.FileMode())
     except black.parsing.InvalidInput:  # type: ignore
         return code
+
+
+def extract_cpp_code(text):
+    """Extract C++ code blocks from LLM response text.
+
+    Handles ```cpp, ```c++, and ``` blocks with C++ content.
+    Also handles ### CONFIG ### and ### CODE ### sections for white-box FHE challenges.
+    """
+    # For white-box: check for CONFIG and CODE sections
+    if "### CONFIG ###" in text or "### CODE ###" in text:
+        return _extract_whitebox_code(text)
+
+    parsed_codes = []
+
+    # Match ```cpp, ```c++, or ``` blocks
+    matches = re.findall(r"```(?:cpp|c\+\+)?\n*(.*?)\n*```", text, re.DOTALL)
+    for match in matches:
+        if match.strip():
+            parsed_codes.append(match.strip())
+
+    if parsed_codes:
+        return max(parsed_codes, key=len)
+
+    # Fallback: look for C++-like content without code fences
+    lines = text.split("\n")
+    code_lines = []
+    in_code = False
+    for line in lines:
+        if any(kw in line for kw in ["#include", "m_cc->", "EvalMult", "EvalAdd",
+                                      "Ciphertext", "m_OutputC", "m_InputC"]):
+            in_code = True
+        if in_code:
+            code_lines.append(line)
+
+    return "\n".join(code_lines) if code_lines else text
+
+
+def _extract_whitebox_code(text):
+    """Extract code and optional CONFIG section for white-box FHE challenges."""
+    pattern = r"```(?:\w+)?\n(.*?)```"
+    matches = re.findall(pattern, text, re.DOTALL)
+
+    if not matches:
+        incomplete_pattern = r"```(?:\w+)?\n(.*?)(?=```|\Z)"
+        matches = re.findall(incomplete_pattern, text, re.DOTALL)
+
+    config_json = None
+    main_code = None
+
+    config_keys = ['"indexes_for_rotation_key"', '"mult_depth"', '"ring_dimension"',
+                   '"poly_degree"', '"plaintext_modulus"', '"scheme"', '"batch_size"']
+
+    for block in matches:
+        block_lower = block.lower()
+        if "### config" in block_lower or any(key in block for key in config_keys):
+            config_json = block.strip()
+            if config_json.lower().startswith("### config"):
+                config_json = "\n".join(config_json.split("\n")[1:]).strip()
+        elif "### code" in block_lower:
+            main_code = block.strip()
+            if main_code.lower().startswith("### code"):
+                main_code = "\n".join(main_code.split("\n")[1:]).strip()
+        elif any(kw in block for kw in ["EvalMult", "EvalAdd", "m_cc->", "Ciphertext", "m_OutputC"]):
+            main_code = block.strip()
+        elif not main_code and len(block.strip()) > 50:
+            main_code = block.strip()
+
+    result_parts = []
+    if config_json:
+        result_parts.append("### CONFIG ###")
+        result_parts.append(config_json)
+    if main_code:
+        result_parts.append("\n### CODE ###")
+        result_parts.append(main_code)
+    elif matches:
+        result_parts.append("\n### CODE ###")
+        result_parts.append(max(matches, key=len).strip())
+
+    if result_parts:
+        return "\n".join(result_parts)
+
+    return text
