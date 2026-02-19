@@ -208,7 +208,7 @@ def run():
         futures = {executor.submit(step_task) for _ in range(min(max_workers, total_steps))}
         completed = 0
         lock = threading.Lock()
-        while completed <= total_steps:
+        while completed < total_steps:
             
             done, _ = wait(futures, return_when=FIRST_COMPLETED)
             
