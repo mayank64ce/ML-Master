@@ -85,17 +85,26 @@ class LLM:
             "temperature": temp,
             "max_tokens": tokens,
             "stream": stream,
-            "extra_body": {
-    "chat_template_kwargs": {"thinking": True},
-    "separate_reasoning": True
-},
             **kwargs
         }
-        
+
+        # only send vLLM reasoning params for self-hosted models
+        _is_cloud_model = (
+            self.model_name.startswith("gpt-") or
+            self.model_name.startswith("claude-") or
+            self.model_name.startswith("gemini-") or
+            "gpt-5" in self.model_name
+        )
+        if not _is_cloud_model:
+            params["extra_body"] = {
+                "chat_template_kwargs": {"thinking": True},
+                "separate_reasoning": True,
+            }
+
         # add stop_tokens
         if stops is not None:
             params["stop"] = stops
-            
+
         attempt = 0
         while attempt < self.retry_time:
             try:
@@ -156,13 +165,22 @@ class LLM:
             "temperature": temp,
             "max_tokens": tokens,
             "stream": stream,
-            "extra_body": {
-    "chat_template_kwargs": {"thinking": True},
-    "separate_reasoning": True
-},
             **kwargs
         }
-        
+
+        # only send vLLM reasoning params for self-hosted models
+        _is_cloud_model = (
+            self.model_name.startswith("gpt-") or
+            self.model_name.startswith("claude-") or
+            self.model_name.startswith("gemini-") or
+            "gpt-5" in self.model_name
+        )
+        if not _is_cloud_model:
+            params["extra_body"] = {
+                "chat_template_kwargs": {"thinking": True},
+                "separate_reasoning": True,
+            }
+
         # add stop_tokens
         if stops is not None:
             params["stop"] = stops
