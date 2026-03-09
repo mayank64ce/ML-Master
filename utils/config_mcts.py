@@ -21,6 +21,21 @@ shutup.mute_warnings()
 logger = logging.getLogger("ml-master")
 
 
+def _get_next_logindex(dir: Path) -> int:
+    """Get the next available index for a log directory."""
+    if not dir.exists():
+        return 0
+    max_index = -1
+    for p in dir.iterdir():
+        try:
+            current_index = int(p.name.split("-")[0])
+            if current_index > max_index:
+                max_index = current_index
+        except ValueError:
+            pass
+    return max_index + 1
+
+
 """ these dataclasses are just for type hinting, the actual config is in config.yaml """
 
 
@@ -189,10 +204,16 @@ def prep_cfg(cfg: Config):
     top_workspace_dir.mkdir(parents=True, exist_ok=True)
 
     # generate experiment name and prefix with consecutive index
+    ind = max(_get_next_logindex(top_log_dir), _get_next_logindex(top_workspace_dir))
     cfg.exp_name = cfg.exp_name or coolname.generate_slug(3)
+    cfg.exp_name = f"{ind}-{cfg.exp_name}"
 
     cfg.log_dir = (top_log_dir / cfg.exp_name).resolve()
     cfg.workspace_dir = (top_workspace_dir / cfg.exp_name).resolve()
+
+    # create experiment subdirs immediately so concurrent runs get distinct indices
+    cfg.log_dir.mkdir(parents=True, exist_ok=True)
+    cfg.workspace_dir.mkdir(parents=True, exist_ok=True)
 
     # validate the config
     cfg_schema: Config = OmegaConf.structured(Config)
