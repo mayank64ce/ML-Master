@@ -397,13 +397,16 @@ class FHEAgent(MCTSAgent):
             return {
                 "Response Format": (
                     "Provide your implementation in this format:\n\n"
-                    "1. Brief explanation of your approach (2-3 sentences)\n\n"
+                    "1. Your approach:\n"
+                    "### PLAN ###\n"
+                    "Brief explanation of your approach (2-3 sentences)\n\n"
                     "2. The eval() function body:\n"
                     "```cpp\n"
                     "// Your implementation here\n"
                     "// Do NOT include function signature or braces\n"
                     "```\n\n"
-                    "IMPORTANT: Only provide the code that goes INSIDE eval(), "
+                    "IMPORTANT: Both the ### PLAN ### section and the code block are required. "
+                    "Only provide the code that goes INSIDE eval(), "
                     "not the function signature or surrounding code."
                 )
             }
@@ -411,16 +414,25 @@ class FHEAgent(MCTSAgent):
         elif self.spec.challenge_type == ChallengeType.WHITE_BOX_OPENFHE:
             return {
                 "Response Format": (
-                    "Provide BOTH sections (config.json controls crypto parameters):\n\n"
+                    "Provide your implementation in this format:\n\n"
+                    "1. Your approach:\n"
+                    "### PLAN ###\n"
+                    "Brief explanation of your approach (2-3 sentences)\n\n"
+                    "2. Crypto parameters:\n"
+                    "```json\n"
                     "### CONFIG ###\n"
                     "{\n"
                     '  "mult_depth": 20,\n'
                     '  "indexes_for_rotation_key": [1, 2, 4],\n'
                     '  "scheme": "CKKS"\n'
-                    "}\n\n"
+                    "}\n"
+                    "```\n\n"
+                    "3. Implementation:\n"
+                    "```cpp\n"
                     "### CODE ###\n"
-                    "// Your eval() function body here\n\n"
-                    "IMPORTANT: Both sections are required for white-box challenges."
+                    "// Your eval() function body here\n"
+                    "```\n\n"
+                    "IMPORTANT: All three sections are required."
                 )
             }
 
@@ -508,6 +520,8 @@ class FHEAgent(MCTSAgent):
             ]
 
         self.virtual_root.add_expected_child_count()
+        # logger.info(f"Template prompt is {self._build_template_prompt()}")
+        # logger.info(f"Calling plan_and_code_query from _draft with prompt: {prompt_complete}")
         plan, code = self.plan_and_code_query(prompt_complete)
         new_node = MCTSNode(
             plan=plan, code=code, parent=self.virtual_root,
@@ -584,6 +598,7 @@ class FHEAgent(MCTSAgent):
             ]
 
         parent_node.add_expected_child_count()
+        # logger.info(f"Calling plan_and_code_query from _improve with prompt: {prompt_complete}")
         plan, code = self.plan_and_code_query(prompt_complete)
         new_node = MCTSNode(
             plan=plan, code=code, parent=parent_node,
@@ -654,6 +669,7 @@ class FHEAgent(MCTSAgent):
             ]
 
         parent_node.add_expected_child_count()
+        # logger.info(f"Calling plan_and_code_query from _debug with prompt: {prompt_complete}")
         plan, code = self.plan_and_code_query(prompt_complete)
         new_node = MCTSNode(
             plan=plan, code=code, parent=parent_node,
@@ -683,10 +699,20 @@ class FHEAgent(MCTSAgent):
 
             code = extract_cpp_code(completion_text)
             # Extract natural language text before code
+            # Extract explanation: prefer ### PLAN ### marker, fallback to text before first code block
             nl_text = ""
-            if "```" in completion_text:
+            if "### PLAN ###" in completion_text:
+                nl_text = completion_text.split("### PLAN ###")[1].split("```")[0].strip()
+            elif "```" in completion_text:
                 nl_text = completion_text[:completion_text.find("```")].strip()
-
+            # Strip any stray markers that are not real plan text
+            for marker in ["### CONFIG ###", "### CODE ###", "### PLAN ###"]:
+                nl_text = nl_text.replace(marker, "").strip()
+            if len(nl_text) < 10:
+                nl_text = ""
+            logger.debug(f"Input prompt is {prompt[1]["content"]}")
+            logger.debug(f"{self.acfg.code.model} response : {completion_text}")
+            logger.debug(f"Code is {code} and \n NL Text is {nl_text}")
             if code and nl_text:
                 return nl_text, code
 

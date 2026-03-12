@@ -150,7 +150,7 @@ def _get_next_logindex(dir: Path) -> int:
     max_index = -1
     for p in dir.iterdir():
         try:
-            if current_index := int(p.name.split("-")[0]) > max_index:
+            if (current_index := int(p.name.split("-")[0])) > max_index:
                 max_index = current_index
         except ValueError:
             pass
@@ -290,7 +290,7 @@ def save_run(cfg: Config, journal: Journal):
 
     # save the best found solution
     fhe_mode = cfg.fhe is not None and cfg.fhe.challenge_dir is not None
-    best_node = journal.get_best_node()
+    best_node = journal.get_best_node() or journal.get_best_node(only_good=False)
     if best_node is not None:
         ext = "cpp" if fhe_mode else "py"
         with open(cfg.log_dir / f"best_solution.{ext}", "w") as f:

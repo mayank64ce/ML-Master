@@ -8,7 +8,7 @@ MEMORY_INDEX=0
 code_model=gpt-5-mini-2025-08-07
 code_temp=0.5
 
-feedback_model=gpt-4o-mini
+feedback_model=gpt-5-mini
 feedback_temp=0.5
 
 start_cpu=0
